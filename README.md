@@ -6,8 +6,8 @@
 |:---:|---|---|
 |单例模式基类|BaseManager、SingletonAutoMono、SingletonMono|避免重复的声明单例
 |缓存池|缓存池Mgr和单对象池类|回收重复创建的GameObject
-|事件中心||
-|公共Mono||
+|事件中心|事件中心类，事件封装类和事件接口|作为监听者分发事件
+|公共Mono|12|
 |场景切换||
 |资源加载||
 |输入控制||
@@ -129,4 +129,50 @@ MonoBehaviour挂载的GameObject创建时，脚本会跟随创建。
 
 ## 事件中心
 
+### 1. 整体结构
 
+|类名|类的职责|
+|---|---|
+|EventCenter|负责记录外部传入的事件，并在触发时分发事件|
+|EventInfo : IEventInfo|记录事件的类，为无参事件做一层封装|
+|EventInfo< T > : IEventInfo|为有参事件做一层封装|
+|IEventInfo|为两个记录事件的类提供父类，满足里氏替换原则进行转换|
+
+#### 1.1 EventCenter
+
+|名称|作用|操作|
+|---|---|---|
+|Dictionary<string, IEventInfo> eventDic|记录事件类的字典|无
+|AddEventListener< T >(string name, UnityAction< T > action)|添加有参事件|检查字典是否有name的事件类，无就构造一个事件类加入字典，事件类记录目标事件
+|AddEventListener(string name, UnityAction action)|添加无参事件的重载|同上
+|RemoveEventListener< T >(string name, UnityAction< T > action)|移除有参事件|字典查询目标得到事件类，移除改事件的监听
+|RemoveEventListener(string name, UnityAction action)|移除无参事件的重载|同上
+|EventTrigger<T>(string name, T info)|有参事件的触发|检查字典存在目标事件类时，不为空就执行事件
+|EventTrigger(string name)|无参事件的触发|同上
+|Clear()|清空记录事件的字典|清空对事件类的引用，切换场景时让GC自动回收上个场景的事件类
+
+#### 1.2 EventInfo : IEventInfo
+|名称|作用|操作|
+|---|---|---|
+|UnityAction actions|事件|无
+|EventInfo(UnityAction action)|构造函数|记录初次传入的事件
+
+#### 1.3 EventInfo< T > : IEventInfo
+|名称|作用|操作|
+|---|---|---|
+|UnityAction actions|事件|无
+|EventInfo(UnityAction action)|构造函数|记录初次传入的事件
+
+#### 1.4 IEventInfo
+
+空接口
+
+### 2.思考
+
+#### 2.1 监听者模式
+
+
+#### 2.2 里氏替换
+
+
+#### 2.3 结合项目思考
