@@ -187,6 +187,60 @@ MonoBehaviour挂载的GameObject创建时，脚本会跟随创建。
 
 ## 公共Mono模块
 
- 
+### 1. 类
+|MonoMgr|Mono管理类|MonoController|Mono方法提供类
+|---|---|---|---|
+|MonoMgr()| 构造方法，创建一个GameObject并挂载MOnoController    |event UnityAction updateEvent|更新Update的事件
+|AddUpdateListener(UnityAction fun)|事件传递给MonoController    |Start ()|  标记自身过场景不删除
+|RemoveUpdateListener(UnityAction fun)|移除MonoController中的事件|Update ()|  自身每帧调用updateEvent事件，通知监听模块执行方法|
+|Coroutine StartCoroutine(IEnumerator routine)|调用MonoController执行协程|AddUpdateListener(UnityAction fun)| 添加帧更新事件的函数|
+|Coroutine StartCoroutine(string methodName, [DefaultValue("null")] object value)| 同上，启动有参协程 |RemoveUpdateListener(UnityAction fun)|移除帧跟新事件的函数|
+|Coroutine StartCoroutine(string methodName)|按名称执行协程，但只能执行MonoController内部的协程|||
+
+### 2. 功能
+ 向外提供MonoBehavior脚本的方法，比如生命周期周期函数，或者开启协程。   
+ 由此可以节省不必要的脚本声明，在热更新项目中也会担任很重要的角色，热更的逻辑可能无法写在Mono脚本中，需要根据Mono生命周期执行时，可以通过将事件交给MonoMgr来执行。
+
+### 3. MonoBehavior执行生命周期
+
+#### 3.1 生命周期执行层顺序  
 
 
+> `Initialization` => Editor => Initialiazation => `Physics` => `Input events` => `Game logic` => 
+Scene rendering => Gizmo rendering => GUI rendering => End of frame => Pausing => Decommissioning   
+
+
+#### 3.2 常用生命周期方法(按时间顺序排列)   
+
+|方法|执行生命周期层|触发时机|常用场景|
+|---|:---:|---|---|
+|Awake|Initialization层|加载场景时初始化GameObject时、先前非活动的GameObject设置活动时、初始化使用Object.Instantiate创建之后、GameObject被Add脚本后|执行初始化操作
+|OnEnable|Initialization层|该函数在对象变为启用和激活状态时调用|被执行Active时想要执行的操作，比如被回收的UI重新激活时进行Group刷新
+|Start|Initialization层|在将要执行第一帧前|初始化后的操作，需要访问其他重要类的初始化操作
+|FixedUpdate|Physics层|固定帧率执行，默认为0.02s/次|用于物理计算
+|OnTrigger`Enter`|Physics层|挂载的触发器被触发时（Enter、Exit、Stay）|用作简单的区域判断，比如进入火海的怪物，调用collider的怪物脚本持续扣血
+|OnCollision`Enter`|Physics层|挂载的碰撞体被触发时（Enter、Exit、Stay）|子弹等需要考虑精确信息的情况，collision类包含接触点和速度
+|yield WaitForFixedUpdate|Physics层|物理帧的最后执行|协程想要实现物理运算时
+|OnMouse`Enter`|InputEvents层|当鼠标对碰撞体操作时（Enter、Exit、Over、Up、Drag、Down、UpAsButton）|模型的选中，拖拽等
+|Update|GameLogic层|每一帧执行|键盘监听，每帧更新的业务逻辑
+|yield null or something|GameLogic层|协程没有返回特殊类时|多是用来暂停协程的逻辑，留给下一帧继续，降低系统压力
+|yield WaitForSeconds|GameLogic层|指定秒数后执行|计时器，延迟协程逻辑
+|StartCoroutine|GameLogic层||开启协程方法
+|LateUpdate|GameLogic层|在一帧的最后执行|需要跟随计算的情况，如跟随相机，跟随的挂件
+|OnDrawGizmos|GizmoRendering层|每帧执行|测试阶段画辅助线
+|OnGUI|GUIRendering层|每帧执行|绘制GUI，也属于测试阶段
+|yield WaitForEndOfFrame|EndOfFrame层|协程在一帧的最后执行|协程需要计算一些跟随的逻辑，我还没遇到 ┑(￣Д ￣)┍
+|OnDisable|Decommissioning层|当挂载物体失活时|对于需要回收物体的回收操作和关闭方法
+|OnDestroy|Decommissioning层|被删除前的逻辑|如怪物死亡后清除尸体时，执行血液武器等的删除
+
+>自上表格可以看出，协程的生命周期方法是要迟于本体方法的。
+#### 3.2 偶尔使用的生命周期方法
+|方法|触发时机|常用场景|
+|---|---|---|
+|OnAnimatorMove|在物理层，每帧调用|用于处理动画移动以修改根运动的回调
+|OnAnimatorIK|在物理层，每帧调用|用于设置动画 IK的回调
+|OnApplicationFocus|在帧的最后检查焦点是否在程序内|程序焦点改变时暂停游戏或者改变UI等
+|OnApplicationPause|在帧的最后检查程序是否暂停|程序暂停时通知游戏逻辑暂停
+
+
+## 场景切换模块    
