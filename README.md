@@ -5,15 +5,14 @@
 |框架模块|具体内容|作用|
 |:---:|---|---|
 |单例模式基类|BaseManager、SingletonAutoMono、SingletonMono|避免重复的声明单例
-|缓存池|缓存池Mgr和单对象池类|回收重复创建的GameObject
-|事件中心|事件中心类，事件封装类和事件接口|作为监听者分发事件
+|缓存池|PoolMgr、PoolData|回收重复创建的GameObject
+|事件中心|EventCenter、EventInfo、IEventInfo|作为监听者分发事件
 |公共Mono|MonoMgr、MonoController|向外提供MonoBehavior的生命周期
-|场景切换||
-|资源加载||
-|输入控制||
-|音效管理||
-|UI控制||
-|数据管理||
+|场景切换|ScenesMgr|同步或异步加载场景，并在异步时向外更新进度
+|资源加载|ResMgr|同步或者异步加载对象，并自动实例化GameObject
+|输入控制|InputMgr|监听设备输入情况并广播
+|音效管理|MusicMgr|背景音乐与音效的创建和修改
+|UI管理|BasePanel、UIManager|UI面板基类和UI面板的管理模块，自动获取面板控件
 
 ## 单例模式基类
 
@@ -270,5 +269,140 @@ Scene rendering => Gizmo rendering => GUI rendering => End of frame => Pausing =
 ### 1. ResMgr类
 |方法|操作|作用|
 |---|---|---|
-|+ T Load< T >(string name) where T:Object||
-|+ LoadAsync< T >(string name, UnityAction<T> callback) where T:Object||
+|+ T Load< T >(string name) where T:Object|加载指定资源，如果是GameObject就实例化之后再返回|同步加载资源，并实例化
+|+ LoadAsync< T >(string name, UnityAction< T > callback) where T:Object|开启异步协程|对外开放异步加载方法
+|- ReallyLoadAsync< T >(string name, UnityAction< T > callback) where T : Object|异步加载指定资源，是GameObject也是实例化后再返回|异步加载资源
+
+### 2. 拓展
+#### 2.1 ResourceRequest
+Resources包的异步加载请求，继承自**AsyncOperation**
+|变量|作用|使用示例|
+|---|---|---|
+|asset|正在加载的资源对象（只读）|加载完成后，直接调用实例化asset
+
+### 3. 联想
+
+#### 3.1 协程换成线程
+目前大部分异步操作都是使用协程，并不是协程真的万能，而是Unity对于线程支持度较低。后续尝试多了解线程池等相关知识，考虑使用线程替代部分协程的工作。
+#### 3.2 协程与线程差异
+协程的逻辑执行只是被yield分帧在主线程里执行，好处是不用担心线程安全问题，坏处就是压力依然集中在主线程。
+线程是独立于主线程的，在允许操作Unity资源的前提下，加载和操作资源是不会影响到主线程的，减少了主线程的压力，但也带来了线程安全问题。
+
+#### 3.3 线程安全问题
+简言之，多个线程访问同一个目标，出现的冲突就是线程安全问题。    
+如：    
+同时访问主角的100血量属性，一个要加10一个要扣10，结果一定不是100，只会是90或者110。     
+两个线程访问同一个没有实例化的单例类，此时就会实例化两个该类，因为都触发了类的实例化，哦吼，单例变双例。（bytheway：饿汉模式因为提前实例化，恰好避免了该问题）
+
+#### 3.4 支持Unity线程的插件
+[Unity3dAsyncAwaitUtil][1]  
+
+[1]:https://github.com/modesttree/Unity3dAsyncAwaitUtil.git    
+
+
+## 输入控制模块
+
+### 1. InputMgr类
+|方法|操作|作用|
+|---|---|---|
+|+ InputMgr()|将自己的Update传入MonoMgr|实例化时，为自己获得Update的生命周期
+|+ StartOrEndCheck(bool isOpen)|检测输入状态的变量修改为入参|提供关闭开启输入检测的方法
+|- CheckKeyCode(KeyCode key)|将按键输入传递给事件中心|将输入事件广播
+|- MyUpdate()|状态变量为true时，调用CheckKeyCode（）方法，并传入需要广播的KeyCode|记录需要广播的按键
+
+### 2. 拓展
+新旧版输入系统  
+旧版输入控制是声明在哪就在哪修改。  
+新版集中化处理，在配置文件中声明并且兼容了多平台的输入，封装了自己的事件中心，并且事件内容也更加详细。
+
+鉴于游戏公司多数使用旧版Unity，使用的都是旧版输入系统，暂不深入了解InputSystem
+
+## 音效管理模块
+
+### 1. MusicMgr类
+仅适用于没有距离要求的音效场景
+
+
+|成员|操作|作用|
+|---|---|---|
+|- AudioSource bkMusic||背景音乐播放器
+|- float bkValue||背景音乐大小
+|- GameObject soundObj||音效播放器挂载物体
+|- List< AudioSource > soundList||音效列表
+|- float soundValue||音效大小
+|+ MusicMgr()|将自己的Update传给MonoMgr|实例化时，时获得Update的触发时机
+|- Update()|遍历soundList，删除已经停止播放的AudioSource|清除无用的播放器
+|+ PlayBkMusic(string name)|如果背景音乐播放器为空，创建一个物体并挂载播放器，记录播放器。异步加载背景音乐并初始化。|播放背景音乐
+|+ PauseBKMusic()|如果背景音乐不为空，暂停播放器|暂停背景音乐
+|+ StopBKMusic()|如果背景音乐不为空，停止播放器|关闭背景音乐
+|+ ChangeBKValue(float v)|修改背景音乐音量值，当播放器不为空，向播放器赋值|修改背景音乐音量大小
+|+ PlaySound(string name, bool isLoop, UnityAction< AudioSource > callBack = null)|当音效挂载物体为空时，创建并记录，异步加载音效并加入新的播放器，播放器挂载到物体上并初始化|播放音效
+|+ ChangeSoundValue( float value )|遍历当前音效数组，赋值目标音量值|修改音效音量
+|+ StopSound(AudioSource source)|检查列表是否有该播放器，移出列表并停止播放删除播放器|停止音效
+
+
+## UI模块
+
+### 1. BasePanel类
+|成员|操作|作用|
+|---|---|---|
+|- Dictionary<string, List< UIBehaviour >> controlDic||通过里氏转换来记录所有控件的字典
+|- Awake ()|寻找所有的子控件|保护虚函数，提供给子类获取控件的初始化
+|+ ShowMe()|虚函数等子类写逻辑|显示自己
+|+ HideMe()|虚函数等子类写逻辑|隐藏自己
+|- OnClick(string btnName)|虚函数等子类写逻辑|按钮点击时的委托，子类可以根据传入的btnName分辨具体按钮
+|- OnValueChanged(string toggleName, bool value)|虚函数等子类写逻辑|Toggle被点击时的委托，子类根据入参执行逻辑
+|- T GetControl< T >(string controlName) where T : UIBehaviour|当字典有该名称的对象时，遍历对象的控件List得到该控件并返回|得到对应名称物体的指定类型控件
+|- FindChildrenControl< T >() where T:UIBehaviour|获取对象下所有子控件T，遍历控件计入字典，当T为Button或者Toggle等有交互的控件时，传入委托|找到子对象的对应控件加入字典
+
+#### 1.1 知识点
+
+##### 1.1.1 里氏替换
+老生常谈的经典原则，父类装子类，常常伴随泛型一起使用。此处是为了满足同时接受所有的UI控件类，使用共同的父类UIBehaviour接收，使用时再as成指定的类。
+
+##### 1.1.2 活用FindChildren避免手动拖拽
+平时的UI控件都是Public或者SerializeField序列化到Inspector面板上手动拖拽，此处唐老师采用了全部Find，按照对象名称分别记录到字典。     
+访问时通过字典里的对象名与对应控件类可以找到，声明特殊事件委托的情况也可以通过提前编写带名称的委托封装方法实现。（ps：当前只写了Btn和Tog两种，其他Slider等用到的时候再加）
+
+
+### 2. UIManager类
+|成员|操作|作用|
+|---|---|---|
+|+ Dictionary<string, BasePanel> panelDic||记录Panel的字典
+|- Transform bot||UI层级中的底层
+|- Transform mid||UI层级中的中层
+|- Transform top||UI层级中的顶层
+|- Transform system||UI层级中的系统层
+|+ RectTransform canvas||记录UI的Canvas方便外部访问
+|+ UIManager()|创建Canvas并记录四个层级的Transform，保留Canvas于EventSystem过场景不移除|构造函数，初始化
+|+ Transform GetLayerFather(E_UI_Layer layer)|外部访问层级时，返回对应Transfrom|向外提供Canvas的层级对象
+|+ ShowPanel< T >(string panelName, E_UI_Layer layer = E_UI_Layer.Mid, UnityAction< T > callBack = null) where T:BasePanel|访问字典有Panel时，调用面板的ShowMe（）并执行委托结束函数，无面板时异步加载面板资源，并在加载结束后根据入参设定层级父节点，初始化面板的Transfrom，显示面板记入字典并执行委托|显示面板并设定层级
+|+ HidePanel(string panelName)|有面板时，调用面板HideMe（）并删除面板，移出字典|删除面板
+|+ T GetPanel< T >(string name) where T:BasePanel|检查字典是否有该key返回T，无返回空|外部获取目标面板
+|+ AddCustomEventListener(UIBehaviour control, EventTriggerType type, UnityAction< BaseEventData > callBack)|获取控件的EventTrigger，没有就添加，事件类型设置为入参的type，事件的calback传入入参的委托|给控件添加事件监听的静态方法
+
+#### 2.1 知识点
+
+##### 2.1.1 Hierarchy的渲染顺序
+算是常识，UI正常情况下是按照Hierarchy的上下顺序来渲染的（World模式的UI是按照距离渲染）。如：A、B图片，A在上B在下，因为渲染顺序是自上向下，先渲染A再渲染B，所以在屏幕上就像先画了A再画了B，B就会掩盖在A上。      
+此处唐老师借此衍生出了UI的四个层级对象，底层，中层，顶层，系统层。      
+使用场景：打开背包界面，一个黑色的背景属于底层，背包栏和装备栏属于中层，被拖拽的装备临时属于顶层这样就不会被背包或者装备栏遮挡，而装备拖拽失败时弹出的警告必然属于系统层，渲染在所有层级之上。
+
+##### 2.1.2 EventTrigger
+
+
+Unity文档原话：    
+>接收来自 EventSystem 的事件，并为每个事件调用已注册的函数。    
+EventTrigger 可用来指定您想为每个 EventSystem 事件调用的函数。 您可以将多个函数分配给单个事件，每当 EventTrigger 收到该事件时，都会按照这些函数的提供顺序调用它们。 
+注意：将此组件附加到游戏对象将导致该对象拦截所有事件，并且所有事件都不会传播到父对象。  
+您可以通过两种方式拦截事件：    
+一是扩展 EventTrigger，并覆盖您想拦截的事件的函数   
+二是指定单个委托
+
+经测试，加入EventTrigger的Click并不会影响原本Btn的Click触发。
+
+此处唐老师使用EventTrigger是为了额外拓展一些触发，比如图片也需要监听鼠标点击，与此类似的操作是在图片上挂载一个脚本并继承IPointerClickHandler接口。相较之下加入EventTrigger确实会更方便。（ps：以前真的是直接挂载脚本专门负责监听，真的太浪费了）
+
+既然提到接口，就继续说说，IPointerClickHandler类似的接口，与EventTrigger都属于UnityEngine.EventSystems命名空间，EventTrigger就是Unity为我们提供的集事件大成者，与我刚才提到的挂在脚本做监听类似，不过是封装好的。
+
+挖个坑`EventSystems`也可以写一篇笔记，结构参照Unity文档的结构
