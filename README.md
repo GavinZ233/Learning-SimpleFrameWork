@@ -1,6 +1,8 @@
 # Learning-SimpleFrameWork
-学习唐老狮基础框架课程时的记录与思考
-
+学习唐老狮基础框架课程时的记录与思考        
+ReadMe没有目录不便查阅，丢两个有目录的地址      
+[Wiki](https://github.com/GavinZ233/Learning-SimpleFrameWork/wiki)
+[知乎](https://zhuanlan.zhihu.com/p/653773390)
 # 唐老狮的基础框架
 |框架模块|具体内容|作用|
 |:---:|---|---|
@@ -254,7 +256,8 @@ Scene rendering => Gizmo rendering => GUI rendering => End of frame => Pausing =
 ### 2. 拓展知识
 
 #### 2.1 AsyncOperation类
-异步操作协同程序
+异步操作协同程序    
+
 |变量|作用|使用示例|
 |---|---|---|
 |allowSceneActivation|允许在场景准备就绪后立即激活场景|设置为false，可以等待额外的初始化内容完成后再激活
@@ -275,7 +278,8 @@ Scene rendering => Gizmo rendering => GUI rendering => End of frame => Pausing =
 
 ### 2. 拓展
 #### 2.1 ResourceRequest
-Resources包的异步加载请求，继承自**AsyncOperation**
+Resources包的异步加载请求，继承自**AsyncOperation**     
+
 |变量|作用|使用示例|
 |---|---|---|
 |asset|正在加载的资源对象（只读）|加载完成后，直接调用实例化asset
